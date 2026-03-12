@@ -17,7 +17,7 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 st.set_page_config(page_title="My AlGrow", page_icon="🚀", layout="wide")
 
 # ==========================================
-# 2. ฟังก์ชันเดิมของคุณ 100% (ไม่แตะต้อง)
+# 2. ฟังก์ชันเดิมของคุณ 100% (ห้ามแก้)
 # ==========================================
 @st.cache_data(ttl=3600)
 def find_viral_videos(api_key, search_query, max_results=15, days_ago=7):
@@ -70,7 +70,7 @@ def scrape_and_rewrite(video_id, title):
         {original_text}
         """
         response = client.models.generate_content(
-            model='gemini-2.5-flash', # 📌 ใช้โมเดล 2.5 ที่คุณรันผ่าน
+            model='gemini-2.5-flash', # 📌 ใช้ 2.5-flash ตัวที่คุณรันผ่าน 
             contents=prompt
         )
         return response.text
@@ -79,14 +79,14 @@ def scrape_and_rewrite(video_id, title):
         return None
 
 # ==========================================
-# 3. ฟังก์ชันใหม่: วิเคราะห์รูปภาพ (Plugin เสริม)
+# 3. ฟังก์ชันเสริม: วิเคราะห์รูป (Feature 2)
 # ==========================================
 def analyze_channel_from_image(image_file):
     try:
         img = PIL.Image.open(image_file)
         prompt = "นี่คือภาพหน้าจอจากคลิป YouTube โปรดวิเคราะห์และบอกชื่อช่อง (Channel Name) โลโก้ และเนื้อหาหลักที่เกี่ยวข้องในภาพให้แม่นยำที่สุด"
         response = client.models.generate_content(
-            model='gemini-2.5-flash', # ใช้รุ่น 2.5 ที่ผ่านชัวร์ๆ ควบคู่กับรูปภาพ
+            model='gemini-2.5-flash',
             contents=[prompt, img]
         )
         return response.text
@@ -94,16 +94,54 @@ def analyze_channel_from_image(image_file):
         return f"❌ เกิดข้อผิดพลาดในการวิเคราะห์ภาพ: {e}"
 
 # ==========================================
-# 4. Web UI (ระบบเมนูแยกฟีเจอร์ชัดเจน)
+# 4. ฟังก์ชันเสริม: ค้นหาช่องและสถิติ (Feature 3 - ใหม่)
 # ==========================================
-# สร้าง Sidebar ด้านซ้าย
+@st.cache_data(ttl=3600)
+def get_similar_channels(api_key, query, max_results=5):
+    """ค้นหาช่องคู่แข่งและดึงสถิติปัจจบัน"""
+    youtube = build('youtube', 'v3', developerKey=api_key)
+    try:
+        # 1. ค้นหาไอดีช่องจากคีย์เวิร์ด
+        search_res = youtube.search().list(q=query, type="channel", part="snippet", maxResults=max_results).execute()
+        channel_ids = [item['snippet']['channelId'] for item in search_res.get('items', [])]
+        
+        if not channel_ids: return []
+
+        # 2. ดึงสถิติของช่องเหล่านั้น
+        stats_res = youtube.channels().list(part="snippet,statistics", id=",".join(channel_ids)).execute()
+        results = []
+        for ch in stats_res.get('items', []):
+            results.append({
+                "title": ch['snippet']['title'],
+                "description": ch['snippet'].get('description', 'ไม่มีคำอธิบายช่อง'),
+                "subs": int(ch['statistics'].get('subscriberCount', 0)),
+                "views": int(ch['statistics'].get('viewCount', 0)),
+                "videos": int(ch['statistics'].get('videoCount', 0)),
+                "url": f"https://www.youtube.com/channel/{ch['id']}"
+            })
+        # เรียงตามจำนวนผู้ติดตามจากมากไปน้อย
+        return sorted(results, key=lambda x: x['subs'], reverse=True)
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการดึงข้อมูลช่อง: {e}")
+        return []
+
+# ==========================================
+# 5. Web UI (ระบบ Sidebar Menu)
+# ==========================================
 st.sidebar.title("🚀 My AlGrow Menu")
-menu = st.sidebar.radio("เลือกเครื่องมือ:", ["🎯 ค้นหาคลิป & Rewrite", "📸 Find Channel (วิเคราะห์จากรูป)"])
+menu = st.sidebar.radio(
+    "เลือกเครื่องมือ:", 
+    [
+        "🎯 1. ค้นหาคลิป & Rewrite", 
+        "📸 2. Find Channel (จากรูป)", 
+        "📊 3. Similar Channels & Trends" # เพิ่มเมนูที่ 3
+    ]
+)
 
 # ------------------------------------------
 # หน้าฟีเจอร์ที่ 1 (ของเดิมของคุณ)
 # ------------------------------------------
-if menu == "🎯 ค้นหาคลิป & Rewrite":
+if menu == "🎯 1. ค้นหาคลิป & Rewrite":
     st.title("🎯 ค้นหาคลิปไวรัล & Rewrite สคริปต์")
     keyword = st.text_input("🔍 พิมพ์คีย์เวิร์ด (เช่น trivia, gadget):")
 
@@ -136,23 +174,49 @@ if menu == "🎯 ค้นหาคลิป & Rewrite":
             st.warning("❌ ไม่พบวิดีโอไวรัลใหม่ๆ ลองเปลี่ยนคีย์เวิร์ดดูนะครับ")
 
 # ------------------------------------------
-# หน้าฟีเจอร์ที่ 2 (เพิ่มใหม่)
+# หน้าฟีเจอร์ที่ 2 (Find Channel)
 # ------------------------------------------
-elif menu == "📸 Find Channel (วิเคราะห์จากรูป)":
+elif menu == "📸 2. Find Channel (จากรูป)":
     st.title("📸 Find Channel")
     st.markdown("แคปภาพหน้าจอคลิปที่คุณสนใจ แล้วอัปโหลดให้ AI วิเคราะห์หาชื่อช่องและเจาะลึกเนื้อหา")
     
-    # กล่องอัปโหลดรูปภาพ
     uploaded_file = st.file_uploader("อัปโหลดภาพ Screenshot (รองรับ JPG, PNG)", type=["jpg", "jpeg", "png"])
     
     if uploaded_file is not None:
-        # แสดงรูปที่อัปโหลด
         st.image(uploaded_file, caption="ภาพที่คุณอัปโหลด", use_container_width=True)
-        
-        # ปุ่มกดวิเคราะห์
         if st.button("🔍 วิเคราะห์หาช่องคู่แข่ง", type="primary"):
             with st.spinner("🤖 AI กำลังสแกนรูปภาพ..."):
                 analysis_result = analyze_channel_from_image(uploaded_file)
                 st.success("✅ วิเคราะห์เสร็จสิ้น!")
-                st.markdown("### 📊 ผลการวิเคราะห์จาก AI")
                 st.info(analysis_result)
+
+# ------------------------------------------
+# หน้าฟีเจอร์ที่ 3 (Similar Channels & Trends)
+# ------------------------------------------
+elif menu == "📊 3. Similar Channels & Trends":
+    st.title("📊 Similar Channels & Trends")
+    st.markdown("ค้นหาช่องคู่แข่งใน Niche ของคุณ และวิเคราะห์สถิติเพื่อดูแนวทางการเติบโต")
+    
+    niche_keyword = st.text_input("🔍 พิมพ์ Niche หรือแนวช่องของคุณ (เช่น เล่าเรื่องผี, AI Tools):")
+    
+    if niche_keyword:
+        with st.spinner("กำลังสแกนหาช่องคู่แข่งในตลาด..."):
+            channels = get_similar_channels(YOUTUBE_API_KEY, niche_keyword)
+            
+        if channels:
+            st.success(f"พบ {len(channels)} ช่องที่เป็นคู่แข่งหรือมีเนื้อหาใกล้เคียง!")
+            
+            # วนลูปสร้างหน้าปัด Dashboard (Metrics) ทีละช่อง
+            for ch in channels:
+                st.markdown(f"### 📺 [{ch['title']}]({ch['url']})")
+                
+                # แบ่งเป็น 3 คอลัมน์เพื่อความสวยงาม
+                col1, col2, col3 = st.columns(3)
+                col1.metric("👥 ผู้ติดตาม (Subs)", f"{ch['subs']:,}")
+                col2.metric("👁️ ยอดวิวรวม", f"{ch['views']:,}")
+                col3.metric("🎬 จำนวนคลิป", f"{ch['videos']:,}")
+                
+                st.markdown(f"📝 **รายละเอียดช่อง:** {ch['description'][:200]}...")
+                st.divider() # เส้นคั่นระหว่างช่อง
+        else:
+            st.warning("❌ ไม่พบช่องที่เกี่ยวข้อง ลองใช้คีย์เวิร์ดที่กว้างขึ้นดูนะครับ")
