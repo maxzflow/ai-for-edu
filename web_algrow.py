@@ -199,6 +199,12 @@ menu = st.sidebar.radio(
     ]
 )
 
+
+# 📌 เพิ่มกล่องตั้งค่า API Key สำรองตรงนี้
+st.sidebar.markdown("---")
+st.sidebar.markdown("### ⚙️ ตั้งค่าฉุกเฉิน")
+custom_api_key = st.sidebar.text_input("🔑 เปลี่ยน API Key (แก้โควต้าเต็ม 20 ครั้ง/วัน)", type="password", help="เอา API Key จากบัญชีอื่นมาแปะเพื่อใช้งานต่อทันที")
+
 # ------------------------------------------
 # หน้าฟีเจอร์ที่ 1 (ของเดิมของคุณ)
 # ------------------------------------------
@@ -430,3 +436,4 @@ elif menu == "💡 5. AI Niche Explorer":
                 
             except Exception as e:
                 st.error(f"❌ เกิดข้อผิดพลาดในการวิเคราะห์: {e}")
+
