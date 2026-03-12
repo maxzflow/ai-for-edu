@@ -76,7 +76,7 @@ def scrape_and_rewrite(video_id, title):
         {original_text}
         """
         response = client.models.generate_content(
-            model='gemini-2.0-flash', # หรือ 2.5-flash ตามที่คุณมี
+            model='gemini-1.5-flash', # หรือ 2.5-flash ตามที่คุณมี
             contents=prompt
         )
         return response.text
@@ -125,4 +125,5 @@ if keyword:
                         mime="text/plain"
                     )
     else:
+
         st.warning("❌ ไม่พบวิดีโอไวรัลใหม่ๆ ลองเปลี่ยนคีย์เวิร์ดดูนะครับ")
