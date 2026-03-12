@@ -400,7 +400,7 @@ elif menu == "💡 5. AI Niche Explorer":
         ]
     )
     
-    # ระบุกลุ่มเป้าหมาย (Optional)
+    # ระบุกลุ่มเป้าหมาย
     target_audience = st.radio("🎯 กลุ่มเป้าหมายหลักของคุณคือใคร?", ["คนไทย (เนื้อหาภาษาไทย)", "ต่างชาติ (เนื้อหาภาษาอังกฤษเพื่อรับค่าโฆษณาสูง)"], horizontal=True)
     
     if st.button("🚀 ค้นหา Niche และ Keyword ทำเงิน", type="primary"):
@@ -423,9 +423,14 @@ elif menu == "💡 5. AI Niche Explorer":
             จัดรูปแบบให้สวยงาม อ่านง่าย ใช้ Emoji ประกอบ
             """
             
+            # 👇 โค้ดชุดใหม่ที่คุณถาม เอามาวางทับตรงนี้ครับ 👇
             try:
-                # เรียกใช้ AI (เวอร์ชัน 2.5 ตามที่คุณใช้รันผ่าน)
-                response = client.models.generate_content(
+                # 📌 เลือกใช้ Key สำรองถ้ามีการกรอกไว้บนหน้าเว็บ
+                active_key = custom_api_key if custom_api_key else GEMINI_API_KEY
+                active_client = genai.Client(api_key=active_key)
+                
+                # เรียกใช้ AI ด้วย Client ตัวใหม่
+                response = active_client.models.generate_content(
                     model='gemini-2.5-flash',
                     contents=prompt
                 )
@@ -436,4 +441,5 @@ elif menu == "💡 5. AI Niche Explorer":
                 
             except Exception as e:
                 st.error(f"❌ เกิดข้อผิดพลาดในการวิเคราะห์: {e}")
+
 
