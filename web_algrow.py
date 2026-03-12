@@ -76,7 +76,7 @@ def scrape_and_rewrite(video_id, title):
         {original_text}
         """
         response = client.models.generate_content(
-            model='gemini-1.5-flash', # หรือ 2.5-flash ตามที่คุณมี
+            model='gemini-1.5-flash', # รุ่นนี้ Google ให้โควต้าฟรีเยอะกว่ามาก โอกาสติด 429 ต่ำสุด
             contents=prompt
         )
         return response.text
@@ -127,3 +127,4 @@ if keyword:
     else:
 
         st.warning("❌ ไม่พบวิดีโอไวรัลใหม่ๆ ลองเปลี่ยนคีย์เวิร์ดดูนะครับ")
+
