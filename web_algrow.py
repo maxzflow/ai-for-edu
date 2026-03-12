@@ -125,6 +125,55 @@ def get_similar_channels(api_key, query, max_results=5):
         st.error(f"เกิดข้อผิดพลาดในการดึงข้อมูลช่อง: {e}")
         return []
 
+
+# ==========================================
+# [เพิ่มใหม่] ฟังก์ชันดึงคลิปล่าสุดของช่องคู่แข่ง
+# ==========================================
+def get_recent_videos_for_channel(api_key, channel_id, max_results=10):
+    youtube = build('youtube', 'v3', developerKey=api_key)
+    try:
+        # ค้นหาคลิปล่าสุดของช่องนั้น
+        search_res = youtube.search().list(
+            part="snippet", channelId=channel_id, maxResults=max_results, order="date", type="video"
+        ).execute()
+        
+        video_ids = [item['id']['videoId'] for item in search_res.get('items', [])]
+        if not video_ids: return []
+        
+        # ดึงยอดวิวของคลิปเหล่านั้น
+        stats_res = youtube.videos().list(part="snippet,statistics", id=",".join(video_ids)).execute()
+        videos_data = []
+        for v in stats_res.get('items', []):
+            videos_data.append({
+                "title": v['snippet']['title'],
+                "views": int(v['statistics'].get('viewCount', 0)),
+                "date": v['snippet']['publishedAt'][:10] # เอาแค่วันที่ YYYY-MM-DD
+            })
+        return videos_data
+    except Exception as e:
+        return []
+
+def analyze_channel_strategy(channel_name, videos_data):
+    """ให้ AI วิเคราะห์แนวทางของช่องจากคลิปล่าสุด"""
+    prompt = f"""
+    คุณคือนักวิเคราะห์การเติบโตบน YouTube (YouTube Strategist)
+    นี่คือข้อมูลคลิปล่าสุด 10 คลิปจากช่อง '{channel_name}':
+    {videos_data}
+    
+    โปรดวิเคราะห์ข้อมูลเหล่านี้และเขียนสรุปสั้นๆ กระชับ เป็นข้อๆ ดังนี้:
+    1. 🎯 Content Trend: ช่วงนี้ช่องนี้กำลังเน้นทำเนื้อหาแนวไหน?
+    2. 🔥 Winning Format: คลิปไหนที่ยอดวิวโดดเด่นกว่าเพื่อน และคิดว่าเป็นเพราะอะไร? (เช่น ชื่อคลิปน่าสนใจ, เกาะกระแส)
+    3. 💡 Actionable Advice: แนะนำกลยุทธ์ 1-2 ข้อ ที่เราสามารถนำมาปรับใช้กับช่องของเราได้เพื่อแย่งยอดวิว
+    """
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash', # ใช้รุ่นที่รันผ่าน
+            contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        return f"❌ ไม่สามารถวิเคราะห์ได้ในขณะนี้: {e}"
+
 # ==========================================
 # 5. Web UI (ระบบ Sidebar Menu)
 # ==========================================
@@ -191,11 +240,11 @@ elif menu == "📸 2. Find Channel (จากรูป)":
                 st.info(analysis_result)
 
 # ------------------------------------------
-# หน้าฟีเจอร์ที่ 3 (Similar Channels & Trends)
+# หน้าฟีเจอร์ที่ 3 (Similar Channels & Trends - อัปเกรด AI Analysis)
 # ------------------------------------------
 elif menu == "📊 3. Similar Channels & Trends":
     st.title("📊 Similar Channels & Trends")
-    st.markdown("ค้นหาช่องคู่แข่งใน Niche ของคุณ และวิเคราะห์สถิติเพื่อดูแนวทางการเติบโต")
+    st.markdown("ค้นหาช่องคู่แข่งใน Niche ของคุณ และให้ AI วิเคราะห์สถิติเพื่อเจาะลึกแนวทางการเติบโต")
     
     niche_keyword = st.text_input("🔍 พิมพ์ Niche หรือแนวช่องของคุณ (เช่น เล่าเรื่องผี, AI Tools):")
     
@@ -206,17 +255,35 @@ elif menu == "📊 3. Similar Channels & Trends":
         if channels:
             st.success(f"พบ {len(channels)} ช่องที่เป็นคู่แข่งหรือมีเนื้อหาใกล้เคียง!")
             
-            # วนลูปสร้างหน้าปัด Dashboard (Metrics) ทีละช่อง
             for ch in channels:
                 st.markdown(f"### 📺 [{ch['title']}]({ch['url']})")
                 
-                # แบ่งเป็น 3 คอลัมน์เพื่อความสวยงาม
                 col1, col2, col3 = st.columns(3)
                 col1.metric("👥 ผู้ติดตาม (Subs)", f"{ch['subs']:,}")
                 col2.metric("👁️ ยอดวิวรวม", f"{ch['views']:,}")
                 col3.metric("🎬 จำนวนคลิป", f"{ch['videos']:,}")
                 
                 st.markdown(f"📝 **รายละเอียดช่อง:** {ch['description'][:200]}...")
+                
+                # 📌 ปุ่มกดให้ AI วิเคราะห์กลยุทธ์ (ใช้ key=ch['id'] เพื่อไม่ให้ปุ่มทับซ้อนกัน)
+                if st.button(f"🧠 ให้ AI วิเคราะห์กลยุทธ์ของช่อง '{ch['title']}'", key=ch['url']):
+                    with st.spinner(f"กำลังดึงข้อมูลคลิปล่าสุดและวิเคราะห์แนวทางการเติบโต..."):
+                        recent_videos = get_recent_videos_for_channel(YOUTUBE_API_KEY, ch['url'].split('/')[-1])
+                        
+                        if recent_videos:
+                            # ให้ AI วิเคราะห์
+                            analysis_result = analyze_channel_strategy(ch['title'], recent_videos)
+                            st.markdown("#### 📈 บทวิเคราะห์แนวทางการเติบโต (โดย AI)")
+                            st.info(analysis_result)
+                            
+                            # แถมข้อมูลดิบให้ดูด้วยแบบพับเก็บได้
+                            with st.expander("ดูรายการคลิปล่าสุดที่นำมาวิเคราะห์"):
+                                for v in recent_videos:
+                                    st.write(f"- {v['date']} | วิว: {v['views']:,} | {v['title']}")
+                        else:
+                            st.warning("ไม่สามารถดึงข้อมูลคลิปล่าสุดได้ หรือช่องนี้อาจไม่มีคลิปใหม่")
+                
                 st.divider() # เส้นคั่นระหว่างช่อง
         else:
             st.warning("❌ ไม่พบช่องที่เกี่ยวข้อง ลองใช้คีย์เวิร์ดที่กว้างขึ้นดูนะครับ")
+
