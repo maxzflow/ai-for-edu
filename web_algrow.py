@@ -126,6 +126,16 @@ def get_similar_channels(api_key, query, max_results=5):
         return []
 
 
+import re
+
+# ==========================================
+# [เพิ่มใหม่] ฟังก์ชันตัวช่วยสำหรับ Feature 4
+# ==========================================
+def extract_video_id(url):
+    """สกัดเอาแค่รหัส Video ID ออกมาจากลิงก์ YouTube"""
+    match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11}).*", url)
+    return match.group(1) if match else None
+
 # ==========================================
 # [เพิ่มใหม่] ฟังก์ชันดึงคลิปล่าสุดของช่องคู่แข่ง
 # ==========================================
@@ -183,7 +193,8 @@ menu = st.sidebar.radio(
     [
         "🎯 1. ค้นหาคลิป & Rewrite", 
         "📸 2. Find Channel (จากรูป)", 
-        "📊 3. Similar Channels & Trends" # เพิ่มเมนูที่ 3
+        "📊 3. Similar Channels & Trends",
+        "🕵️‍♂️ 4. YouTube Scraper" # 📌 เพิ่มเมนูที่ 4 ตรงนี้
     ]
 )
 
@@ -286,4 +297,5 @@ elif menu == "📊 3. Similar Channels & Trends":
                 st.divider() # เส้นคั่นระหว่างช่อง
         else:
             st.warning("❌ ไม่พบช่องที่เกี่ยวข้อง ลองใช้คีย์เวิร์ดที่กว้างขึ้นดูนะครับ")
+
 
