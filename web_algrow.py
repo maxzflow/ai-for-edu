@@ -299,3 +299,73 @@ elif menu == "📊 3. Similar Channels & Trends":
             st.warning("❌ ไม่พบช่องที่เกี่ยวข้อง ลองใช้คีย์เวิร์ดที่กว้างขึ้นดูนะครับ")
 
 
+# ------------------------------------------
+# หน้าฟีเจอร์ที่ 4 (YouTube Scraper)
+# ------------------------------------------
+elif menu == "🕵️‍♂️ 4. YouTube Scraper":
+    st.title("🕵️‍♂️ YouTube Scraper")
+    st.markdown("ดึงข้อมูล SEO, Tags, และสคริปต์ (Transcript) จากคลิป YouTube คู่แข่งได้ในพริบตา")
+    
+    # ช่องใส่ลิงก์
+    video_url = st.text_input("🔗 วางลิงก์ YouTube ที่ต้องการเจาะข้อมูลที่นี่:")
+    
+    if video_url:
+        video_id = extract_video_id(video_url)
+        
+        if video_id:
+            with st.spinner("กำลังดูดข้อมูลหลังบ้านของคลิปนี้..."):
+                try:
+                    # 1. ดึงข้อมูล SEO และสถิติ
+                    yt = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+                    res = yt.videos().list(part="snippet,statistics", id=video_id).execute()
+                    
+                    if res.get('items'):
+                        item = res['items'][0]
+                        snippet = item['snippet']
+                        stats = item.get('statistics', {})
+                        
+                        st.subheader(snippet['title'])
+                        
+                        # แสดงหน้าปัดสถิติ
+                        col1, col2, col3 = st.columns(3)
+                        col1.metric("👁️ ยอดวิว", f"{int(stats.get('viewCount', 0)):,}")
+                        col2.metric("👍 ยอดไลก์", f"{int(stats.get('likeCount', 0)):,}")
+                        col3.metric("📅 วันที่ลงคลิป", snippet['publishedAt'][:10])
+                        
+                        st.divider()
+                        
+                        # แสดง Tags เพื่อเอาไปใช้ทำ SEO
+                        tags = snippet.get('tags', [])
+                        st.markdown("### 🏷️ SEO Tags ของคลิปนี้")
+                        if tags:
+                            st.code(", ".join(tags), language="text")
+                        else:
+                            st.info("คลิปนี้ไม่ได้ใส่ Tags ซ่อนไว้")
+                        
+                        st.markdown("### 📝 คำอธิบายคลิป (Description)")
+                        st.text_area("", snippet.get('description', ''), height=150)
+                        
+                        # 2. ดึง Transcript
+                        st.markdown("### 💬 สคริปต์วิดีโอ (Transcript)")
+                        try:
+                            transcript_list = YouTubeTranscriptApi().fetch(video_id, languages=['th', 'en'])
+                            transcript_text = TextFormatter().format_transcript(transcript_list)
+                            
+                            st.text_area("", transcript_text, height=300)
+                            
+                            # ปุ่มดาวน์โหลดข้อมูลทั้งหมดรวมกัน
+                            st.download_button(
+                                label="💾 ดาวน์โหลดข้อมูล (สคริปต์ + Tags)", 
+                                data=f"หัวข้อ: {snippet['title']}\nลิงก์: {video_url}\n\n[SEO Tags]\n{', '.join(tags)}\n\n[สคริปต์]\n{transcript_text}", 
+                                file_name=f"SCRAPED_{video_id}.txt",
+                                mime="text/plain"
+                            )
+                        except Exception:
+                            st.warning("⚠️ ไม่สามารถดูดสคริปต์ได้: คลิปนี้อาจจะไม่มีซับไตเติล (CC) ให้ดึง")
+                    else:
+                        st.error("❌ ไม่พบข้อมูลวิดีโอนี้ (วิดีโออาจถูกลบหรือตั้งเป็นส่วนตัว)")
+                        
+                except Exception as e:
+                    st.error(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูล: {e}")
+        else:
+            st.error("⚠️ ลิงก์ไม่ถูกต้อง กรุณาก๊อปปี้ลิงก์ YouTube มาวางให้ครบถ้วนครับ")
